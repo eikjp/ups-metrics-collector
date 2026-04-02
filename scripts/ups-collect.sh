@@ -19,11 +19,9 @@ influx_post() {
   local label="$1"
   local data="$2"
   local status
-  status=$(curl -s -m 10 -o /tmp/influx_${label}_response.txt -w "%{http_code}" 
-\
+  status=$(curl -s -m 10 -o /tmp/influx_${label}_response.txt -w "%{http_code}" \
     --request POST \
-    "${INFLUX_URL}/api/v2/write?org=${INFLUX_ORG}&bucket=${INFLUX_BUCKET}&precis
-ion=ns" \
+    "${INFLUX_URL}/api/v2/write?org=${INFLUX_ORG}&bucket=${INFLUX_BUCKET}&precision=ns" \
     --header "Authorization: Token ${INFLUX_TOKEN}" \
     --header "Content-Type: text/plain; charset=utf-8" \
     --data-raw "${data}")
@@ -99,8 +97,7 @@ LOAD_5M=$(awk '{print $2}' /proc/loadavg)
 # メモリ使用率（%）
 MEM_TOTAL=$(awk '/^MemTotal:/    {print $2}' /proc/meminfo)
 MEM_AVAIL=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)
-MEM_USED_PCT=$(awk "BEGIN {printf \"%.1f\", (1 - ${MEM_AVAIL}/${MEM_TOTAL}) * 10
-0}")
+MEM_USED_PCT=$(awk "BEGIN {printf \"%.1f\", (1 - ${MEM_AVAIL}/${MEM_TOTAL}) * 100}")
 
 # ディスク使用率（/ パーティション）
 DISK_USED_PCT=$(df / | awk 'NR==2 {gsub(/%/, "", $5); print $5}')
