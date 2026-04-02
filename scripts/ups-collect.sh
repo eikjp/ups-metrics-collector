@@ -7,7 +7,10 @@
 : "${INFLUX_TOKEN:?INFLUX_TOKEN is not set}"
 : "${INFLUX_ORG:?INFLUX_ORG is not set}"
 : "${INFLUX_BUCKET:?INFLUX_BUCKET is not set}"
-: "${UPS_HOST:?UPS_HOST is not set}"
+COLLECT_UPS="${COLLECT_UPS:-true}"
+if [ "$COLLECT_UPS" = "true" ]; then
+  : "${UPS_HOST:?UPS_HOST is not set}"
+fi
 : "${HOST_NAME:?HOST_NAME is not set}"
 : "${HOST_ROLE:?HOST_ROLE is not set}"
 # ─────────────────────────────────────────────────────────
@@ -36,41 +39,42 @@ influx_post() {
 # UPS メトリクス
 # ═══════════════════════════════════════════════════════
 
+if [ "$COLLECT_UPS" = "true" ]; then
 
-# UPS データ取得
-UPS_DATA=$(upsc "${UPS_HOST}" 2>/dev/null)
-if [ -z "$UPS_DATA" ]; then
-  echo "ERROR: upsc failed" >&2
-  exit 1
-fi
+  # UPS データ取得
+  UPS_DATA=$(upsc "${UPS_HOST}" 2>/dev/null)
+  if [ -z "$UPS_DATA" ]; then
+    echo "ERROR: upsc failed" >&2
+    exit 1
+  fi
 
-# 各値を抽出
-get_val() { echo "$UPS_DATA" | grep "^${1}:" | awk '{print $2}'; }
+  # 各値を抽出
+  get_val() { echo "$UPS_DATA" | grep "^${1}:" | awk '{print $2}'; }
 
-BATTERY_CHARGE=$(get_val "battery.charge")
-BATTERY_RUNTIME=$(get_val "battery.runtime")
-BATTERY_VOLTAGE=$(get_val "battery.voltage")
-INPUT_VOLTAGE=$(get_val "input.voltage")
-OUTPUT_VOLTAGE=$(get_val "output.voltage")
-UPS_LOAD=$(get_val "ups.load")
-UPS_STATUS=$(get_val "ups.status")
+  BATTERY_CHARGE=$(get_val "battery.charge")
+  BATTERY_RUNTIME=$(get_val "battery.runtime")
+  BATTERY_VOLTAGE=$(get_val "battery.voltage")
+  INPUT_VOLTAGE=$(get_val "input.voltage")
+  OUTPUT_VOLTAGE=$(get_val "output.voltage")
+  UPS_LOAD=$(get_val "ups.load")
+  UPS_STATUS=$(get_val "ups.status")
 
-# 必須フィールドが取得できなければ終了
-if [ -z "$BATTERY_CHARGE" ] || [ -z "$UPS_STATUS" ]; then
-  echo "ERROR: required fields missing" >&2
-  exit 1
-fi
+  # 必須フィールドが取得できなければ終了
+  if [ -z "$BATTERY_CHARGE" ] || [ -z "$UPS_STATUS" ]; then
+    echo "ERROR: required fields missing" >&2
+    exit 1
+  fi
 
-# デフォルト値（取得できなかったフィールドの補完）
-BATTERY_RUNTIME=${BATTERY_RUNTIME:-0}
-BATTERY_VOLTAGE=${BATTERY_VOLTAGE:-0}
-INPUT_VOLTAGE=${INPUT_VOLTAGE:-0}
-OUTPUT_VOLTAGE=${OUTPUT_VOLTAGE:-0}
-UPS_LOAD=${UPS_LOAD:-0}
+  # デフォルト値（取得できなかったフィールドの補完）
+  BATTERY_RUNTIME=${BATTERY_RUNTIME:-0}
+  BATTERY_VOLTAGE=${BATTERY_VOLTAGE:-0}
+  INPUT_VOLTAGE=${INPUT_VOLTAGE:-0}
+  OUTPUT_VOLTAGE=${OUTPUT_VOLTAGE:-0}
+  UPS_LOAD=${UPS_LOAD:-0}
 
-# Line Protocol 構築
-# ups_status はタグ（文字列・カーディナリティ低）、数値はフィールド
-LINE_UPS="ups_metrics,host=${HOST_NAME},ups_status=${UPS_STATUS} \
+  # Line Protocol 構築
+  # ups_status はタグ（文字列・カーディナリティ低）、数値はフィールド
+  LINE_UPS="ups_metrics,host=${HOST_NAME},ups_status=${UPS_STATUS} \
 battery_charge=${BATTERY_CHARGE},\
 battery_runtime=${BATTERY_RUNTIME}i,\
 battery_voltage=${BATTERY_VOLTAGE},\
@@ -79,8 +83,10 @@ output_voltage=${OUTPUT_VOLTAGE},\
 ups_load=${UPS_LOAD} \
 ${TIMESTAMP}"
 
-# InfluxDB Cloud に送信
-influx_post "ups" "${LINE_UPS}" || exit 1
+  # InfluxDB Cloud に送信
+  influx_post "ups" "${LINE_UPS}" || exit 1
+
+fi
 
 # ═══════════════════════════════════════════════════════
 # ホストメトリクス
@@ -116,4 +122,8 @@ ${TIMESTAMP}"
 
 influx_post "host" "${LINE_HOST}" || exit 1
 
-echo "OK: UPS + host metrics sent at $(date '+%Y-%m-%d %H:%M:%S')"
+if [ "$COLLECT_UPS" = "true" ]; then
+  echo "OK: UPS + host metrics sent at $(date '+%Y-%m-%d %H:%M:%S')"
+else
+  echo "OK: host metrics sent (UPS collection skipped) at $(date '+%Y-%m-%d %H:%M:%S')"
+fi

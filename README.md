@@ -8,6 +8,8 @@ UPS および UPS 監視ホスト（Linux）のメトリクスを収集し、Inf
 
 [NUT (Network UPS Tools)](https://networkupstools.org/) の `upsc` コマンドを使って UPS のステータスを取得し、UPS 監視ホストのシステム情報（CPU 温度・負荷率・メモリ使用率など）と合わせて InfluxDB Cloud へ送信します。収集は systemd timer により定期実行されます。収集したデータは Grafana Cloud で可視化します。
 
+`COLLECT_UPS=false` を設定することで、UPS 非接続ホストでもホストメトリクスのみ収集できます。
+
 ```
 APC UPS
   └─ NUT (upsd / upsc)
@@ -68,7 +70,7 @@ ups-metrics-collector/
 ## 前提条件
 
 - Linux ホスト（systemd 対応、`/sys` および `/proc` が利用可能であること）
-- NUT クライアント（`upsc` コマンド）がホストにインストール済み
+- NUT クライアント（`upsc` コマンド）がホストにインストール済み（`COLLECT_UPS=false` の場合は不要）
 - systemd が利用可能
 - InfluxDB Cloud アカウント・バケット `ups` 作成済み
 - 書き込み専用 API トークン発行済み
@@ -95,6 +97,8 @@ sudo chmod 600 /etc/ups-collect.env
 
 設定項目：
 
+#### UPS 接続ホスト（デフォルト）
+
 ```bash
 INFLUX_URL=https://ap-northeast-1-1.aws.cloud2.influxdata.com
 INFLUX_TOKEN=your-write-token-here
@@ -103,6 +107,19 @@ INFLUX_BUCKET=ups
 UPS_HOST=ups@localhost
 HOST_NAME=your-hostname
 HOST_ROLE=ups_monitor
+COLLECT_UPS=true        # 省略時も true として動作
+```
+
+#### UPS 非接続ホスト（ホストメトリクスのみ）
+
+```bash
+INFLUX_URL=https://ap-northeast-1-1.aws.cloud2.influxdata.com
+INFLUX_TOKEN=your-write-token-here
+INFLUX_ORG=your-org-name
+INFLUX_BUCKET=ups
+HOST_NAME=your-hostname
+HOST_ROLE=general
+COLLECT_UPS=false       # UPS_HOST の設定は不要
 ```
 
 > **注意**：`/etc/ups-collect.env` は API トークンを含むため、リポジトリには含めていません。`ups-collect.env.example` をテンプレートとして使用してください。
@@ -141,6 +158,8 @@ systemctl status ups-collect.timer
 
 ## 動作確認フロー
 
+#### UPS 接続ホスト
+
 ```
 upsc ups@localhost                   # UPS からデータが取れるか確認
   ↓
@@ -149,6 +168,17 @@ sudo systemctl start ups-collect.service  # スクリプト単体テスト
 InfluxDB Cloud Data Explorer         # bucket: ups にデータが入ったか確認
   ↓
 Grafana Cloud                        # グラフに反映されているか確認
+```
+
+#### UPS 非接続ホスト（COLLECT_UPS=false）
+
+```
+sudo systemctl start ups-collect.service
+  ↓
+sudo journalctl -u ups-collect.service -n 5
+  # "OK: host metrics sent (UPS collection skipped)" が出ることを確認
+  ↓
+InfluxDB Cloud Data Explorer         # host_metrics にのみデータが入ることを確認
 ```
 
 ---
