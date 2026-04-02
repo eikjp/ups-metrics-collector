@@ -1,0 +1,11 @@
+[Unit]
+Description=UPS metrics collection every 1 minutes
+Requires=ups-collect.service
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=20s
+
+[Install]
+WantedBy=timers.target

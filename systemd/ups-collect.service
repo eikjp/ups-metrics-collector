@@ -1,0 +1,11 @@
+[Unit]
+Description=UPS metrics collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/ups-collect.env
+ExecStart=/usr/local/bin/ups-collect.sh
+StandardOutput=journal
+StandardError=journal
