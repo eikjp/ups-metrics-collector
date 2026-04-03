@@ -37,15 +37,15 @@ TIMESTAMP="$(date +%s)000000000"
 influx_post() {
   local label="$1"
   local data="$2"
-  local status
-  status=$(curl -s -m 10 -o /tmp/influx_${label}_response.txt -w "%{http_code}" \
+  local http_status
+  http_status=$(curl -s -m 10 -o /tmp/influx_${label}_response.txt -w "%{http_code}" \
     --request POST \
     "${INFLUX_URL}/api/v2/write?org=${INFLUX_ORG}&bucket=${INFLUX_BUCKET}&precision=ns" \
     --header "Authorization: Token ${INFLUX_TOKEN}" \
     --header "Content-Type: text/plain; charset=utf-8" \
     --data-raw "${data}")
-  if [[ "$status" != "204" ]]; then
-    echo "ERROR: [${label}] InfluxDB returned ${status}" >&2
+  if [[ "$http_status" != "204" ]]; then
+    echo "ERROR: [${label}] InfluxDB returned ${http_status}" >&2
     cat /tmp/influx_${label}_response.txt >&2
     return 1
   fi
