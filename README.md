@@ -216,9 +216,12 @@ Linux 版と同じファイルをそのまま流用できます。
 ```bash
 sudo cp env/ups-collect.env.example /etc/ups-collect.env
 sudo vi /etc/ups-collect.env        # 実際の値を記入
-sudo chown root:wheel /etc/ups-collect.env
+# LaunchAgent はログインユーザー権限で動作するため、ファイルの所有者を自分にする
+sudo chown $(whoami):staff /etc/ups-collect.env
 sudo chmod 600 /etc/ups-collect.env
 ```
+
+> **注意（Linux版との違い）**: Linux の systemd サービスは root で動作するため `chown root:root` で問題ありませんが、macOS の LaunchAgent はログインユーザー権限で動作します。`chown root:wheel` にすると `source` 時に permission denied が発生します。
 
 #### 2. スクリプトの配置・権限設定
 
