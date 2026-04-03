@@ -27,10 +27,13 @@ APC UPS
 ups-metrics-collector/
 ├── README.md
 ├── scripts/
-│   └── ups-collect.sh           # メトリクス収集・送信スクリプト
+│   ├── ups-collect.sh           # メトリクス収集・送信スクリプト（Linux版）
+│   └── ups-collect-mac.sh       # メトリクス収集・送信スクリプト（macOS版）
 ├── systemd/
 │   ├── ups-collect.service      # systemd サービスユニット
 │   └── ups-collect.timer        # systemd タイマーユニット（1分間隔）
+├── launchd/
+│   └── ups-collect-mac.plist    # launchd 設定ファイル（macOS版）
 └── env/
     └── ups-collect.env.example  # 環境変数テンプレート（シークレットなし）
 ```
@@ -179,6 +182,96 @@ sudo journalctl -u ups-collect.service -n 5
   # "OK: host metrics sent (UPS collection skipped)" が出ることを確認
   ↓
 InfluxDB Cloud Data Explorer         # host_metrics にのみデータが入ることを確認
+```
+
+---
+
+---
+
+## macOS 対応
+
+macOS 向けのスクリプト（`scripts/ups-collect-mac.sh`）と launchd 設定ファイル（`launchd/ups-collect-mac.plist`）を提供しています。Linux 版と同じ環境変数ファイル・同じ InfluxDB 送信フォーマットを使用します。
+
+### 前提条件（macOS版）
+
+- macOS（Apple Silicon / Intel、どちらでも動作）
+- `zsh`（macOS デフォルトシェル、`/bin/zsh`）
+- `curl`（macOS 標準）
+- `upsc`（NUT クライアント、`COLLECT_UPS=true` の場合）
+- `osx-cpu-temp`（CPU温度取得・任意だが推奨）
+
+```bash
+# Homebrew でインストール
+brew install osx-cpu-temp
+```
+
+> `osx-cpu-temp` がインストールされていない場合、CPU温度フィールドはスキップされます。`powermetrics`（sudo 必須）へのフォールバックも実装していますが、オーバーヘッドが大きいため `osx-cpu-temp` の使用を推奨します。
+
+### セットアップ手順
+
+#### 1. 環境変数ファイルの配置
+
+Linux 版と同じファイルをそのまま流用できます。
+
+```bash
+sudo cp env/ups-collect.env.example /etc/ups-collect.env
+sudo vi /etc/ups-collect.env        # 実際の値を記入
+sudo chown root:wheel /etc/ups-collect.env
+sudo chmod 600 /etc/ups-collect.env
+```
+
+#### 2. スクリプトの配置・権限設定
+
+```bash
+sudo cp scripts/ups-collect-mac.sh /usr/local/bin/ups-collect-mac.sh
+sudo chmod 755 /usr/local/bin/ups-collect-mac.sh
+```
+
+#### 3. plistの配置・有効化
+
+plist ファイルの配置先：
+
+```
+~/Library/LaunchAgents/com.<hostname>.ups-collect.plist
+```
+
+`<hostname>` の部分を実際のホスト名（`hostname -s` で確認）に置き換えてください。
+
+```bash
+# plist をコピー（ホスト名に合わせてファイル名を変更）
+cp launchd/ups-collect-mac.plist \
+  ~/Library/LaunchAgents/com.$(hostname -s).ups-collect.plist
+
+# plist 内の Label も同様に変更（任意・ファイル名と合わせるとトラブルシュートが容易）
+# <string>com.local.ups-collect</string>
+# → <string>com.<hostname>.ups-collect</string>
+
+# launchd に登録・有効化
+launchctl load ~/Library/LaunchAgents/com.$(hostname -s).ups-collect.plist
+```
+
+#### 4. 動作確認
+
+```bash
+# 手動で即時実行（ログを標準出力に表示）
+zsh /usr/local/bin/ups-collect-mac.sh
+
+# launchd 経由でのログ確認
+tail -f /tmp/ups-collect-mac.log
+tail -f /tmp/ups-collect-mac.err
+
+# launchd ジョブの状態確認
+launchctl list | grep ups-collect
+```
+
+### スリープ動作について
+
+`StartInterval` を使用しているため、Mac がスリープ中はタイマーのカウントが停止します。スリープを解除することはありません。スリープ解除後に次の実行タイミングが来た時点でスクリプトが実行されます。
+
+### launchd の無効化
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.$(hostname -s).ups-collect.plist
 ```
 
 ---

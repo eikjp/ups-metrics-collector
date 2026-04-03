@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Label はファイル名と合わせること。<hostname> を実際のホスト名に置き換える -->
+    <key>Label</key>
+    <string>com.local.ups-collect</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/usr/local/bin/ups-collect-mac.sh</string>
+    </array>
+
+    <!--
+        StartInterval: 60秒間隔で実行。
+        スリープ中はカウントが停止するため、スリープを解除しない。
+        WakeForNetworkAccess や Power キーは意図的に含めていない。
+    -->
+    <key>StartInterval</key>
+    <integer>60</integer>
+
+    <!-- ロード時に即時実行 -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- ログ出力先 -->
+    <key>StandardOutPath</key>
+    <string>/tmp/ups-collect-mac.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/ups-collect-mac.err</string>
+</dict>
+</plist>
