@@ -5,11 +5,24 @@
 #
 # 必要なツール:
 #   - curl        : InfluxDB への HTTP POST（macOS 標準）
+#   - jq          : JSON パース（macOS 標準外）
+#                   brew install jq
 #   - upsc (NUT)  : UPS データ取得（COLLECT_UPS=true の場合）
 #                   https://networkupstools.org/
-#   - osx-cpu-temp: CPU温度取得（推奨・任意）
+#   - macmon      : CPU温度取得（Apple Silicon のみ・任意）
+#                   brew install macmon
+#                   未インストールの場合は CPU温度フィールドをスキップ
+#   - osx-cpu-temp: CPU温度取得（Intel Mac のみ・任意）
 #                   brew install osx-cpu-temp
-#                   インストールされていない場合は CPU温度フィールドをスキップ
+#                   未インストールの場合は CPU温度フィールドをスキップ
+
+# チップ種別判別（arm64 = Apple Silicon、x86_64 = Intel）
+CHIP_ARCH=$(uname -m)
+
+# launchd のデフォルト PATH は /usr/bin:/bin:/usr/sbin:/sbin のみ。
+# Homebrew のパスを明示的に追加する。
+# Apple Silicon: /opt/homebrew/bin、Intel: /usr/local/bin
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 # 環境変数ファイルをロード
 ENV_FILE="/etc/ups-collect.env"
@@ -109,16 +122,22 @@ fi
 # ═══════════════════════════════════════════════════════
 
 # CPU温度
-# osx-cpu-temp が優先。なければ powermetrics（sudo 必須）を試行。
-# どちらも利用不可の場合は CPU温度フィールドをスキップ。
+# Apple Silicon: macmon を使用（sudo不要）
+# Intel:         osx-cpu-temp を使用
+# どちらも未インストールの場合は CPU温度フィールドをスキップ
 CPU_TEMP=""
-if command -v osx-cpu-temp &>/dev/null; then
+if [[ "$CHIP_ARCH" == "arm64" ]]; then
+  # Apple Silicon (M1/M2/M3/M4)
+  # macmon pipe --samples 1 出力例: {"temp":{"cpu_temp_avg":42.5,...},...}
+  if command -v macmon &>/dev/null && command -v jq &>/dev/null; then
+    CPU_TEMP=$(macmon pipe --samples 1 2>/dev/null | jq -r '.temp.cpu_temp_avg' 2>/dev/null)
+  fi
+else
+  # Intel Mac
   # osx-cpu-temp 出力例: "42.4°C"
-  CPU_TEMP=$(osx-cpu-temp 2>/dev/null | sed 's/°C//' | tr -d ' ')
-elif command -v powermetrics &>/dev/null; then
-  # powermetrics は sudo 必須・オーバーヘッドが大きいため最小サンプルで取得
-  CPU_TEMP=$(sudo powermetrics -n 1 -i 500 --samplers smc 2>/dev/null \
-    | awk '/CPU die temperature/ {print $4; exit}')
+  if command -v osx-cpu-temp &>/dev/null; then
+    CPU_TEMP=$(osx-cpu-temp 2>/dev/null | sed 's/°C//' | tr -d ' ')
+  fi
 fi
 
 # ロードアベレージ（1分・5分）
