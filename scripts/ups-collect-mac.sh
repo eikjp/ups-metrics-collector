@@ -19,6 +19,11 @@
 # チップ種別判別（arm64 = Apple Silicon、x86_64 = Intel）
 CHIP_ARCH=$(uname -m)
 
+# launchd のデフォルト PATH は /usr/bin:/bin:/usr/sbin:/sbin のみ。
+# Homebrew のパスを明示的に追加する。
+# Apple Silicon: /opt/homebrew/bin、Intel: /usr/local/bin
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 # 環境変数ファイルをロード
 ENV_FILE="/etc/ups-collect.env"
 if [[ -f "$ENV_FILE" ]]; then
